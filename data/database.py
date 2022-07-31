@@ -1,104 +1,91 @@
 import sqlite3
+from optparse import Option
+from typing import List, Tuple, Union
 
-from aiogram.dispatcher import FSMContext
-
-con = None
-cur = None
-
-
-def start_db():
-    global con, cur
-    con = sqlite3.connect("notebook.db")
-    cur = con.cursor()
-    sql = """\
-    CREATE TABLE IF NOT EXISTS user (
-        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS category (
-        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        name TEXT,
-        FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-    CREATE TABLE IF NOT EXISTS note (
-        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        category_id INTEGER,
-        title TEXT,
-        text TEXT,
-        photo TEXT,
-        date_created TEXT,
-        hash TEXT,
-        FOREIGN KEY (user_id) REFERENCES user(user_id),
-        FOREIGN KEY (category_id) REFERENCES category(category_id)
-    );
-    """
-    try:
-        cur.executescript(sql)
-    except sqlite3.DatabaseError as e:
-        print("Ошибка:", e)
-    else:
-        con.commit()
+from data import Note
 
 
-def add_user_id(data):
-    data['user_id'] = cur.execute("SELECT * FROM user WHERE telegram_id = :telegram_id", dict(data)).fetchall()[0][0]
+class Database:
+    def __init__(self):
+        self.con = sqlite3.connect('notebook.db')
+        self.cur = self.con.cursor()
+        self.create_tables()
 
+    def create_tables(self) -> None:
+        sql = """\
+        CREATE TABLE IF NOT EXISTS user (
+            telegram_id INTEGER  PRIMARY KEY 
+        );
+        CREATE TABLE IF NOT EXISTS category (
+            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER,
+            name_category TEXT,
+            FOREIGN KEY (telegram_id) REFERENCES user(telegram_id)
+        );
+        CREATE TABLE IF NOT EXISTS note (
+            note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER,
+            category_id INTEGER,
+            title TEXT,
+            text TEXT,
+            photo TEXT,
+            date_created TEXT,
+            FOREIGN KEY (telegram_id) REFERENCES user(telegram_id),
+            FOREIGN KEY (category_id) REFERENCES category(category_id)
+        );
+        """
+        with self.con:
+            self.cur.executescript(sql)
 
-def create_user(telegram_id):
-    cur.execute("INSERT INTO user (telegram_id) VALUES(?)", (telegram_id,))
-    con.commit()
+    def create_user(self, telegram_id: int) -> None:
+        with self.con:
+            self.cur.execute("INSERT INTO user (telegram_id) VALUES(?)", (telegram_id,))
 
+    def select_all_telegram_id(self) -> List[str]:
+        return [i[0] for i in self.cur.execute('SELECT telegram_id FROM user').fetchall()]
 
-def get_all_telegram_id():
-    '''Возвращает спискок всех telegram_id пользователей, которые взаимодействовали с ботом'''
-    return [i[0] for i in cur.execute('SELECT telegram_id FROM user').fetchall()]
+    def select_name_category(self, telegram_id) -> List[str]:
+        sql = '''\
+            SELECT name_category 
+            FROM user
+                 INNER JOIN category USING(telegram_id)
+            WHERE telegram_id = ?
+        '''
+        return [i[0] for i in self.cur.execute(sql, (telegram_id,)).fetchall()]
 
+    def select_note(self, telegram_id: int, title: str) -> Union[Note, None]:
+        data = {'telegram_id': telegram_id, 'title': title}
+        sql = '''\
+            SELECT note_id, name_category, title, text, photo 
+            FROM note
+                 INNER JOIN category USING(category_id)
+            WHERE note.telegram_id = :telegram_id  AND title = :title
+        '''
+        res = self.cur.execute(sql, data).fetchone()
+        if res is not None:
+            return Note(*res)
+        return None
 
-def select_name_category(telegram_id):
-    data = {'telegram_id': telegram_id}
-    add_user_id(data)
-    sql = '''\
-        SELECT category_id, name 
-        FROM user
-             INNER JOIN category USING(user_id)
-        WHERE user_id = :user_id
-    '''
-    return cur.execute(sql, data).fetchall()
+    def select_notes(self, telegram_id: int) -> List[Note]:
+        data = {'telegram_id': telegram_id}
+        sql = '''\
+            SELECT note_id, name_category, title, text, photo 
+            FROM note
+                 INNER JOIN category USING(category_id)
+            WHERE note.telegram_id = :telegram_id'''
+        return [Note(*i) for i in self.cur.execute(sql, data)]
 
+    def select_title(self, data: dict) -> List[str]:
+        res = self.cur.execute('SELECT title FROM note WHERE telegram_id = :telegram_id', data).fetchall()
+        return [i[0] for i in res]
 
-def select_notes(telegram_id, title=None):
-    data = {'telegram_id': telegram_id}
-    add_user_id(data)
-    sql = '''\
-        SELECT name, title, text, photo 
-        FROM note
-             INNER JOIN category USING(category_id)
-        WHERE note.user_id = :user_id '''
-    if title is not None:
-        sql += ' AND title = :title'
-        data['title'] = title
-    return cur.execute(sql, dict(data)).fetchall()
+    def insert_note(self, data: dict) -> None:
+        with self.con:
+            self.cur.execute('INSERT INTO note (telegram_id, category_id, title, text, photo)\
+                              VALUES (:telegram_id, :category_id, :title, :text, :photo)', data)
 
+    def insert_category(self, data: dict) -> None:
+        with self.con:
+            self.cur.execute('INSERT INTO category (telegram_id, name_category)\
+                              VALUES (:telegram_id, :name_category)', data)
 
-def select_title(telegram_id):
-    data = {'telegram_id': telegram_id}
-    add_user_id(data)
-    return cur.execute('SELECT title FROM note WHERE user_id = :user_id', dict(data)).fetchall()
-
-
-async def insert_note(state: FSMContext):
-    async with state.proxy() as data:
-        add_user_id(data)
-        cur.execute('INSERT INTO note (user_id, category_id, title, text, photo)\
-                     VALUES (:user_id, :category_id, :title, :text, :photo)', dict(data))
-        con.commit()
-
-
-async def insert_category(state: FSMContext):
-    async with state.proxy() as data:
-        add_user_id(data)
-        cur.execute('INSERT INTO category (user_id, name)\
-                     VALUES (:user_id, :name)', dict(data))
-        con.commit()

@@ -1,11 +1,9 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from data import database
+from loader import database
 
 
-def get_title_keyboard(telegram_id):
+def get_title_keyboard(telegram_id) -> InlineKeyboardMarkup:
     keyboard = InlineKeyboardMarkup()
-
-    for title in database.select_title(telegram_id):
-        keyboard.insert(InlineKeyboardButton(text=title[0], callback_data=title[0]))
-
+    for id, title in database.select_title(telegram_id):
+        keyboard.insert(InlineKeyboardButton(text=title, callback_data=title))
     return keyboard

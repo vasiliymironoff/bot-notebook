@@ -2,8 +2,9 @@ from aiogram import Dispatcher
 from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher.storage import FSMContext
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from data import database
-from keyboard.inline import get_title_keyboard
+from loader import database
+from data.models import Note
+from keyboard import get_title_keyboard
 
 
 class ReadNote(StatesGroup):
@@ -18,7 +19,10 @@ async def choice_note(message: Message):
 async def print_one_note(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await state.finish()
-    await print_note(callback.message, database.select_notes(callback.from_user.id, callback.data)[0])
+    telegram_id = callback.from_user.id
+    title = callback.data
+    note = database.select_note(telegram_id, title)
+    await print_note(callback.message, note)
 
 
 async def print_all_notes(message: Message):
@@ -27,19 +31,19 @@ async def print_all_notes(message: Message):
 
 
 async def find_note(message: Message):
-    note = database.select_notes(message.from_user.id, title=message.text)
-    if len(note) > 0:
-        await print_note(message, note[0])
+    note = database.select_note(message.from_user.id, title=message.text)
+    if note is not None:
+        await print_note(message, note)
     else:
         await message.answer('Записи с таким названием нет')
 
 
-async def print_note(message, note):
-    res = '\n'.join(note[:3])
-    if note[3] is None:
-        await message.answer(res)
+async def print_note(message, note: Note):
+    assert note is not None, 'Записки почему-то нет'
+    if note.photo is None:
+        await message.answer(str(note))
     else:
-        await message.answer_photo(note[3], res)
+        await message.answer_photo(note.photo, str(note))
 
 
 def register_handlers(dp: Dispatcher):
