@@ -16,7 +16,7 @@ class NoteState(StatesGroup):
 async def new_note(message: Message):
     await NoteState.category.set()
     await message.answer('Выберите категорию',
-                         reply_markup=get_category_keyboard(message.from_user.id))
+                         reply_markup=get_category_keyboard(message.from_user.id), )
 
 
 async def enter_category(message: Message, state: FSMContext):

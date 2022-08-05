@@ -75,8 +75,8 @@ class Database:
             WHERE note.telegram_id = :telegram_id'''
         return [Note(*i) for i in self.cur.execute(sql, data)]
 
-    def select_title(self, data: dict) -> List[str]:
-        res = self.cur.execute('SELECT title FROM note WHERE telegram_id = :telegram_id', data).fetchall()
+    def select_title(self, telegram_id) -> List[str]:
+        res = self.cur.execute('SELECT title FROM note WHERE telegram_id = (?)', (telegram_id, )).fetchall()
         return [i[0] for i in res]
 
     def insert_note(self, data: dict) -> None:
@@ -88,4 +88,3 @@ class Database:
         with self.con:
             self.cur.execute('INSERT INTO category (telegram_id, name_category)\
                               VALUES (:telegram_id, :name_category)', data)
-

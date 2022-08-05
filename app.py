@@ -7,7 +7,6 @@ from loader import bot, dp
 
 bot_commands = [
         ('new_category', 'создание новой категории', ''),
-        ('delete_category', 'удаляет выбранную категорию', ''),
         ('new_note', 'создание новой записи', ''),
         ('read_note', 'чтение одной заметки', ''),
         ('read_all_notes', 'чтение всех заметок', ''),

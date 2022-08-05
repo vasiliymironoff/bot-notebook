@@ -1,5 +1,5 @@
 # bot-notebook
-Telegram bot для ведения дневника на aiogram
+Telegram bot блокнот на aiogram
 
 Установка
 1. `git clone https://github.com/vasiliymironoff/bot-notebook.git`
@@ -11,4 +11,5 @@ Telegram bot для ведения дневника на aiogram
 TOKEN_BOT=
 ADMIN_ID=
 ```
+
 6. `python3 app.py`
